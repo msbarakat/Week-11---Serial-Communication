@@ -1,22 +1,19 @@
 // ── SERIAL VARIABLES ──
-// port       : the serial connection object (from p5.webserial)
-// connectBtn : button the user clicks to open the port
-// baudrate   : must match Serial.begin(9600) in Arduino
-// x          : horizontal position of the ellipse on screen
 let port;
 let connectBtn;
-let baudrate = 9600;
-let x = 200;   // starting position — centre of a 400px canvas
+let baudrate = 9600;   // must match Serial.begin(9600) in Arduino
 
 function setup() {
   createCanvas(400, 400);
   background(220);
 
-  // ── CREATE SERIAL PORT ──
+  // ── SERIAL SETUP ──
+  // Creates the port object. Does not open the connection yet.
   port = createSerial();
 
   // ── CONNECT BUTTON ──
-  // The user must click this to trigger the browser's serial port picker dialog.
+  // Browser security requires a user gesture (a click)
+  // before we are allowed to open a serial port.
   connectBtn = createButton("Connect to Arduino");
   connectBtn.position(10, 10);
   connectBtn.mousePressed(connectToSerial);
@@ -25,33 +22,39 @@ function setup() {
 function draw() {
   background(220);
 
-  // ── READ INCOMING DATA ──
-  // readUntil('\n') reads all characters up to and including the newline that Arduino sends at the end of each Serial.println().
-  // If nothing new has arrived yet, str will be ''.
-  let str = port.readUntil("\n");
+  // ── CALCULATE BRIGHTNESS ──
+  // Map the mouse's horizontal position across the canvas
+  // to a brightness value in the range 0–255.
+  // This matches the range that analogWrite() accepts on Arduino.
+  let brightness = int(map(mouseX, 0, width, 0, 255));
 
-  if (str.length > 0) {
-    // trim() removes the trailing '\n' (and any spaces).
-    // int() converts the cleaned string into a number.
-    let val = int(trim(str));
+  // ── CONSTRAIN ──
+  // Clamp the value so it never exceeds 0–255,
+  // even if the mouse moves outside the canvas.
+  brightness = constrain(brightness, 0, 255);
 
-    // ── MAP VALUE TO CANVAS ──
-    // Arduino sends 0–255. We stretch that range across
-    // the full canvas width so the ellipse covers the
-    // entire screen as the pot is turned.
-    x = map(val, 0, 255, 0, width);
+  // ── VISUAL FEEDBACK ──
+  // Draw a rectangle whose fill matches the brightness value.
+  // This gives a visual preview of what the LED will look like.
+  fill(brightness);
+  rect(100, 150, 200, 100);
+
+  // Label showing the exact brightness number being sent
+  fill(0);
+  textSize(16);
+  text("Brightness: " + brightness, 120, 130);
+
+  // ── SEND TO ARDUINO ──
+  // Only write if the port is open (i.e., user has connected).
+  // We append '\n' so Arduino's Serial.read() can detect
+  // the end of the message after parseInt() runs.
+  if (port.opened()) {
+    port.write(brightness + "\n");
   }
-
-  // ── DRAW ELLIPSE ──
-  // x moves horizontally. 
-  // y is fixed at height/2 so the ellipse stays on the vertical centre.
-  ellipse(x, height / 2, 50, 50);
 }
 
 // ── CONNECT FUNCTION ──
-// Called when the button is clicked.
-// port.open(baudrate) launches the browser serial picker
-// and opens the port at 9600 baud if the user selects one.
+// Opens the serial port when the button is clicked.
 function connectToSerial() {
   if (!port.opened()) {
     port.open(baudrate);
